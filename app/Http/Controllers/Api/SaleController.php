@@ -72,9 +72,50 @@ class SaleController extends Controller
             return response()->json(['message' => 'Venta creada correctamente','sale_id' => $sale->id,'total' => (float) $sale->total],201);
         }catch(ValidationException $e){
             throw $e;
-        }catch(Throwable $e){
+       }catch(Throwable $e){   
             Log::error('Error al registrar la venta', ['error'=>$e->getMessage()]);
             return response()->json(['message'=>'Ocurrio un error al registrar la venta'],500);
         }      
+    }
+
+    public function destroy($id)
+    {
+        try {
+            $sale = Sale::with('saleDetails')->find($id);
+            if (!$sale) {
+                return response()->json(['message' => 'La venta que se intenta eliminar no ha sido encontrada'], 404);
+            }
+            $stockDevuelto = [];
+            try {
+                foreach ($sale->saleDetails as $detail) {
+                    $product = Product::find($detail->product_id);
+                    if ($product) {
+                        $product->stock = $product->stock + $detail->quantity;
+                        $product->save();
+                        $stockDevuelto[] = [
+                            'product_id' => $product->id,
+                            'quantity' => $detail->quantity,
+                        ];
+                    }
+                }
+                foreach ($sale->saleDetails as $detail) {
+                    $detail->delete();
+                }
+                $sale->delete();
+                return response()->json(['message' => 'Venta eliminada correctamente'], 200);
+
+            } catch (\Exception $e) {
+                foreach ($stockDevuelto as $item) {
+                    $product = Product::find($item['product_id']);
+                    if ($product) {
+                        $product->stock = $product->stock - $item['quantity'];
+                        $product->save();
+                    }
+                }
+                throw $e;
+            }
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Ocurrio un error al eliminar la venta'], 500);
+        }
     }
 }
