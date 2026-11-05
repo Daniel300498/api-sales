@@ -14,7 +14,25 @@ use Throwable;
 class SaleController extends Controller
 {
 
-    
+    public function index(){
+        $sales=Sale::with(['saleDetails.product:id,name'])->get();
+        $data = $sales->map(function($sale){
+            return [
+                'id'=>$sale->id,
+                'total'=>(float) $sale->total,
+                'created_at'=>$sale->created_at->toDateString(),
+                'details'=>$sale->saleDetails->map(function($detail){
+                    return [
+                        'product_name'=>$detail->product->name,
+                        'quantity'=>$detail->quantity,
+                        'subtotal'=>(float) $detail->subtotal
+                    ];
+                })
+            ];
+        });
+        return response()->json($data,200);
+    }
+
     public function store(SaleRequest $request){
         try{
             $validated=$request->validated();
