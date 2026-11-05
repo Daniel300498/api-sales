@@ -12,4 +12,12 @@ class Product extends Model
         'stock',
         'image'
     ];
+    protected $casts = [
+        'price' => 'decimal:2',
+    ];
+
+    public function saleDetails()
+    {
+        return $this->hasMany(SaleDetail::class);
+    }
 }
