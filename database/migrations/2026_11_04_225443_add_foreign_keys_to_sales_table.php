@@ -41,12 +41,14 @@ return new class extends Migration
         Schema::table('sales', function (Blueprint $table) {
             $table->dropForeign(['user_id']);
         });
-        Schema::table('Sale_details', function (Blueprint $table) {
-            $table->unsignedInteger('user_id')->change();
-            $table->unsignedInteger('product_id')->change();
+
+        Schema::table('sale_details', function (Blueprint $table) {
+            $table->unsignedInteger('sale_id')->nullable(false)->change();
+            $table->unsignedInteger('product_id')->nullable(false)->change();
         });
+
         Schema::table('sales', function (Blueprint $table) {
-            $table->unsignedInteger('user_id')->change();
+            $table->unsignedInteger('user_id')->nullable(false)->change();
         });
     }
 };

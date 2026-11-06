@@ -11,11 +11,13 @@ class Sale extends Model
 
     protected $fillable = [
         'user_id',
-        'total'
+        'total',
+        'total_discount',
     ];
 
     protected $casts = [
         'total' => 'decimal:2',
+        'total_discount' => 'decimal:2',
     ];
     public function user()
     {

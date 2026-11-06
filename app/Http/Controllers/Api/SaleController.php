@@ -20,12 +20,16 @@ class SaleController extends Controller
             return [
                 'id'=>$sale->id,
                 'total'=>(float) $sale->total,
+                'total_discount'=>(float) $sale->total_discount,
                 'created_at'=>$sale->created_at->toDateString(),
                 'details'=>$sale->saleDetails->map(function($detail){
                     return [
-                        'product_name'=>$detail->product->name,
+                        'product'=>$detail->product->name,
                         'quantity'=>$detail->quantity,
-                        'subtotal'=>(float) $detail->subtotal
+                        'subtotal'=>(float) $detail->subtotal,
+                        'discount_percent'=>(float) $detail->discount_percent,
+                        'discount_amount'=>(float) $detail->discount_amount,
+                        'subtotal_with_discount'=>(float) $detail->subtotal_with_discount
                     ];
                 })
             ];
@@ -37,39 +41,52 @@ class SaleController extends Controller
         try{
             $validated=$request->validated();
             $sale= (new Sale)->getConnection()->transaction(function () use ($validated){
-                $items= collect($validated['items'])->groupBy('product_id')->map(fn ($group) => $group->sum('quantity'));
-                $productIds= $items->keys()->sort()->values();
+                $items= collect($validated['items']);
+                $productIds= $items->pluck('product_id')->sort()->values();
                 $products=Product::whereIn('id', $productIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
                 if($products->count()!==$productIds->count()){
                     throw ValidationException::withMessages(['items'=>'Uno o más productos no existen.',]);
                 }
                 $totalCents=0;
+                $totalDiscountCents=0;
                 $detailData=[];
-                foreach($items as $productId=>$quantity){
-                    $product=$products->get($productId);
+                foreach($items as $item){
+                    $product=$products->get($item['product_id']);
+                    $quantity=$item['quantity'];
+                    $discountPercent=(float)($item['discount_percent']??0);
+
                     if ($product->stock<$quantity){
                         throw ValidationException::withMessages(['items'=>"El producto {$product->name} no tiene suficiente stock."]);
                     }            
                 
-                $priceCents=(int) round($product->price*100);
+                $priceCents=(int) round((float)$product->price*100);
                 $subtotalCents=$priceCents*$quantity;
-                $totalCents+=$subtotalCents;
+                $discountBasisPoints = (int) round ($discountPercent * 100);
+                $discountCents=(int) round(($subtotalCents*$discountBasisPoints)/10000);
+                $subtotalWithDiscountCents=$subtotalCents-$discountCents;
+                $totalCents+=$subtotalWithDiscountCents;
+                $totalDiscountCents+=$discountCents;
                 $detailData[]=[
                     'product_id'=>$product->id,
                     'quantity'=>$quantity,
                     'price'=>$priceCents/100,
                     'subtotal'=>$subtotalCents/100,
-                    'created_at'=>now(),
-                    'updated_at'=>now(),
-                ];
+                    'discount_percent'=>$discountPercent,
+                    'discount_amount'=>$discountCents/100,
+                    'subtotal_with_discount'=>$subtotalWithDiscountCents/100,
+                    ];
                 }
-                $sale=Sale::create(['user_id'=>$validated['user_id'],'total'=>$totalCents/100,]); 
+                $sale=Sale::create([
+                    'user_id'=>$validated['user_id'],
+                    'total'=>$totalCents/100,
+                    'total_discount'=>$totalDiscountCents/100,
+                    ]); 
                 $sale->saleDetails()->createMany($detailData);                  
-                foreach($items as $productId=>$quantity){
-                    $products->get($productId)->decrement('stock',$quantity);
+                foreach($items as $item){
+                    $products->get($item['product_id'])->decrement('stock',$item['quantity']);
                 }return $sale;
             });
-            return response()->json(['message' => 'Venta creada correctamente','sale_id' => $sale->id,'total' => (float) $sale->total],201);
+            return response()->json(['message' => 'Venta creada correctamente','sale_id' => $sale->id,'total' => (float) $sale->total, 'total_discount' => (float) $sale->total_discount,],201);
         }catch(ValidationException $e){
             throw $e;
        }catch(Throwable $e){   

@@ -6,9 +6,6 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class SaleRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
@@ -24,8 +21,9 @@ class SaleRequest extends FormRequest
         return [
             'user_id' => 'required|exists:users,id|integer|in:1',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id|integer',
-            'items.*.quantity' => 'required|integer|min:1'
+            'items.*.product_id' => 'required|exists:products,id|integer|distinct',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.discount_percent' => 'sometimes|numeric|min:0|max:10',
     ];
     }
     public function messages(): array
@@ -43,7 +41,11 @@ class SaleRequest extends FormRequest
             'items.*.product_id.integer' => 'El Id del producto debe ser un número entero.',
             'items.*.quantity.required' => 'La cantidad es obligatorio para cada item.',
             'items.*.quantity.integer' => 'La cantidad de cada item debe ser un número entero.',
-            'items.*.quantity.min' => 'La cantidad de cada item debe ser al menos 1.'
+            'items.*.quantity.min' => 'La cantidad de cada item debe ser al menos 1.',
+            'items.*.product_id.distinct' => 'No puedes agregar el mismo producto más de una vez.',
+            'items.*.discount_percent.numeric' => 'El descuento debe ser un valor numérico.',
+            'items.*.discount_percent.min' => 'El descuento no puede ser menor a 0%.',
+            'items.*.discount_percent.max' => 'El descuento no puede ser mayor a 10%.',
         ];
     }
 }
